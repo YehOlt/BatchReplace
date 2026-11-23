@@ -1,0 +1,17 @@
+# BatchReplace 打包与测试依赖（不进 exe，仅本机开发用）
+# 安装：venv_build\Scripts\python -m pip install -r requirements-dev.txt
+
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.8
+altgraph==0.17.5
+pefile==2024.8.26
+pywin32-ctypes==0.2.3
+packaging==26.3
+
+pytest==9.1.1
+pytest-rerunfailures==16.7
+iniconfig==2.3.1
+pluggy==1.6.0
+Pygments==2.21.0
+colorama==0.4.6
+pyflakes==4.0.3

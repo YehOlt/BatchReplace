@@ -1,0 +1,15 @@
+# BatchReplace 运行时依赖
+# 导出：2026-11-23，取自 venv_build 实际安装版本（即能打出当前 exe 的组合）
+# 重建：py -3.12 -m venv venv_build
+#      venv_build\Scripts\python -m pip install -r requirements.txt
+# 打包与测试工具见 requirements-dev.txt（exe 运行时不需要）
+
+openpyxl==3.1.5
+pillow==12.3.0
+python-docx==1.2.0
+pywin32==312
+
+# 以上库的传递依赖，钉版本以保证打包结果可复现
+et_xmlfile==2.0.0
+lxml==6.1.1
+typing_extensions==4.16.0

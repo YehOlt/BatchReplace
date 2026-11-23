@@ -1,0 +1,30 @@
+# 构建/环境产物
+venv_build/
+_venv_build_broken_*/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.spec
+build/
+dist/
+
+# 交付快照文件夹（历史版本，由 git 历史取代）
+BatchReplace_v*/
+
+# 已归档的历史版本（1.x 从交付根移出后的存放位置）
+BatchReplace-archive/
+
+# 自检临时构建产物
+build_selftest/
+dist_selftest/
+
+# 构建 / 测试的运行日志（排查用，不属于仓库内容）
+_build*.log
+_pytest_run.log
+
+# 单测的 basetemp（pytest 用 --basetemp=.pytest_tmp 跑，避免碰系统临时目录）
+# 用通配而非精确名：一次调试里往往换好几个后缀，只写 .pytest_tmp/ 会漏掉它们
+.pytest_tmp*/
+
+# 单测本地中间产物与未发布的下一版草稿，均不进仓库
+tests/_local/
