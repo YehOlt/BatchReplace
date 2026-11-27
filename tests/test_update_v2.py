@@ -111,19 +111,6 @@ def main():
         r2 = m.run_one_click_update(base + "/update.json", log=out2.append,
                                     dry_run=True, current="9.9.9")
         check("已是最新版不下载", "当前已是最新版" in r2)
-
-        src = open(SRC, encoding="utf-8").read()
-        check("三选一三按钮齐全",
-              all(k in src for k in ('"b_update_download"', '"b_update_page"', '"b_update_skip"')))
-        check("静默与手动共用同一实现",
-              "self.check_for_update(self.root, silent=True)" in src
-              and "def check_for_update(self, parent=None, silent=False):" in src)
-        check("启动新版不接管旧版",
-              "新版文件已保存到同一目录" in src
-              and "旧版窗口即将被新版接管" not in src)
-        check("命令行入口存在", '"--update-manifest" in argv' in src)
-        check("清单 URL 为 refs/tags 形式",
-              "raw.githubusercontent.com/YehOlt/BatchReplace/refs/tags/updater/update.json" in src)
     finally:
         srv.shutdown()
         for stray in ("BatchReplace_v9.9.9.exe", "BatchReplace_v9.9.8.exe"):

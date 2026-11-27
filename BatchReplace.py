@@ -7,7 +7,7 @@
 """
 
 # 版本信息（统一在此维护）
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 
 # 打包完整性自检清单（`--selfcheck` 用）：exe 启动前逐个 import，漏带即报。
 # 清单必须覆盖源码里出现过的全部顶层 import 名——自检脚本
@@ -34,7 +34,8 @@ _CHECK_ICON_KEEPALIVE = []
 RELEASE_PAGE_URL = "https://github.com/YehOlt/BatchReplace/releases"
 
 # 更新检查入口：只维护上面那一个发布页地址，API / raw 全部从它推导。
-# 清单主路走 API contents（国内可达），raw 做备胎；再降级 releases/latest、tags。
+# 清单放在仓库根目录 update.json：主路走 API contents（国内可达），raw 做备胎；
+# 再降级 releases/latest、tags。不挂独立分支/标签，仓库的分支与标签页只留版本本身。
 _REPO_ROOT = RELEASE_PAGE_URL.rsplit("/releases", 1)[0]
 _API_ROOT = _REPO_ROOT.replace("github.com/", "api.github.com/repos/")
 UPDATE_API = _API_ROOT + "/releases/latest"
@@ -144,7 +145,7 @@ TEXTS = {
     "col_match": {"zh": "匹配", "en": "Matches"},
     "col_status": {"zh": "状态", "en": "Status"},
     # 日志/状态栏
-    "process_log": {"zh": "处理日志", "en": "Process Log"},
+    "process_log": {"zh": "日志", "en": "Log"},
     "ready": {"zh": "就绪", "en": "Ready"},
     # 历史对话框
     "col_cond_group": {"zh": "条件组", "en": "Condition Set"},
@@ -233,15 +234,6 @@ TEXTS = {
     "about_release": {"zh": "发布页", "en": "Releases"},
     "check_update": {"zh": "检查更新", "en": "Check for Updates"},
     "t_update_found": {"zh": "发现新版本", "en": "New Version Available"},
-    "t_update_fail": {"zh": "检查更新失败", "en": "Update Check Failed"},
-    "m_update_found": {"zh": "发现新版本 {new}，当前版本 {cur}。\n\n是否前往发布页下载？",
-                       "en": "New version {new} is available (current: {cur}).\n\n"
-                             "Open the release page to download?"},
-    "m_update_latest": {"zh": "当前已是最新版 {cur}。", "en": "You are up to date ({cur})."},
-    "m_update_fail": {"zh": "检查更新失败：{e}\n\n是否打开发布页手动查看？",
-                      "en": "Update check failed: {e}\n\nOpen the release page to check manually?"},
-    "m_update_no_tag": {"zh": "未获取到版本信息，请打开发布页查看。",
-                        "en": "No version information returned. Please check the release page."},
     "lg_update_found": {"zh": "发现新版本 {new}，当前版本 {cur}",
                         "en": "New version {new} found (current: {cur})"},
     "lg_update_none": {"zh": "未发现新版本，当前版本 {cur}",
@@ -435,8 +427,8 @@ TEXTS = {
     "conflict_note_tpl": {"zh": "{where}：{reason}", "en": "{where}: {reason}"},
     "conflict_block_head": {"zh": "以下位置被多个条件同时匹配：",
                             "en": "These locations are hit by more than one condition:"},
-    "conflict_block_more": {"zh": "· 另有 {n} 处，详见处理日志",
-                            "en": "· {n} more — see the process log"},
+    "conflict_block_more": {"zh": "· 另有 {n} 处，详见日志",
+                            "en": "· {n} more — see the log"},
     "conflict_block_tail": {"zh": "同一位置只能由一个条件改写，而没有人知道您想保留哪一条，\n"
                                   "所以本工具不替您挑一个执行——本次替换整批停下，一个文件都不会改动。\n\n"
                                   "处理办法：回到条件表把重叠的那条改掉或删掉；\n"
@@ -541,7 +533,7 @@ TEXTS = {
     "note_history_save_failed": {"zh": "保存查找历史失败: {e}",
                                  "en": "Failed to save the find history: {e}"},
     "lg_ui_update_failed": {"zh": "界面更新失败: {e}", "en": "UI update failed: {e}"},
-    # 处理日志正文
+    # 日志正文
     "lg_rule_saved": {"zh": "规则已保存: {path}", "en": "Rule saved: {path}"},
     "lg_cond_moved": {"zh": "条件顺序已调整（链式模式下顺序即执行次序）——若预览窗开着，请重新搜索后再替换",
                       "en": "Condition order changed (in chain mode, order is execution order) — "
@@ -3229,6 +3221,7 @@ class BatchReplaceApp:
         的区域，除去它少一套需维护的文案与状态同步代码。
         """
         self.log_visible = False
+        self.log_user_collapsed = False
         self._total_matches = 0
         self._i18n_widgets = {}
         self._i18n_headings = []
@@ -3253,13 +3246,11 @@ class BatchReplaceApp:
         self._build_log_panel()    # 再占底部：日志折叠条位于状态栏之上
         self._build_file_table()   # 中间列表填满剩余空间
         self.update_status()
+        self._set_log_visible(True)  # 日志默认展开
         # 配置 / 历史在控件之前读，没地方记录失败也不知语言（键按「文案键 +
-        # 参数」存着）。有内容就补报并展开日志——静默只会让用户某天发现设置没生效。
-        if self.startup_notes:
-            for key, kw in self.startup_notes:
-                self.log(self._t(key, **kw))
-            if not self.log_visible:
-                self.toggle_log()
+        # 参数」存着）。有内容就补报——静默只会让用户某天发现设置没生效。
+        for key, kw in self.startup_notes:
+            self.log(self._t(key, **kw))
 
     # ---------- 对话框摆位 ----------
     def _center_dialog(self, dlg, parent=None):
@@ -3870,6 +3861,8 @@ class BatchReplaceApp:
         """状态栏进度文案。done 为 None 表示任务结束、清空。
 
         日志面板默认收起，进度必须写在常驻状态栏，否则大批量替换时用户以为卡死。
+        任务期间收起「当前：…」模式方框给进度让位——它是静态提示，运行中
+        没有信息量；收尾时按原 pack 信息放回。
         """
         bar = getattr(self, "progress_label", None)
         if bar is None:
@@ -3877,16 +3870,68 @@ class BatchReplaceApp:
         if done is None:
             bar.config(text="")
             self._draw_progress_bar(0.0)
+            self._set_mode_box_visible(True)
             return
-        text = f"{label} {done}/{total}"
-        if name:
-            text = f"{text} · {name}"
+        self._set_mode_box_visible(False)
         try:
-            bar.config(text=text)
+            bar.config(text=self._fit_progress_text(label, done, total, name))
         except tk.TclError:
             pass
         # 文字说"到哪一步"，色条说"还剩多少"，两者同步刷新
         self._draw_progress_bar((done / total) if total else 0.0)
+
+    def _set_mode_box_visible(self, visible):
+        """收起 / 放回模式方框。放回时先撤进度标签再按原顺序装回，
+        否则 pack 会把方框追加到进度标签后面、挤占它的扩展空间。"""
+        box = getattr(self, "mode_box", None)
+        if box is None:
+            return
+        shown = box.winfo_ismapped()
+        if visible:
+            if shown:
+                return
+            bar = getattr(self, "progress_label", None)
+            if bar is not None:
+                bar.pack_forget()
+            box.pack(**self._mode_box_pack)
+            if bar is not None:
+                bar.pack(**self._progress_pack)
+        elif shown:
+            box.pack_forget()
+            # 收起后立刻让布局重排一次：紧接着要按标签宽度裁剪进度文字，
+            # 不刷新就还按旧宽度量，会把文字裁得比可用空间短一截
+            try:
+                box.update_idletasks()
+            except tk.TclError:
+                pass
+
+    def _fit_progress_text(self, label, done, total, name):
+        """进度文字按标签实际宽度裁剪：动作与序号永远保留，放不下的文件名
+        做头尾保留省略——被砍掉的中间段通常是无信息量的路径与公司全名。
+        """
+        prefix = f"{label} {done}/{total}"
+        if not name:
+            return prefix
+        full = f"{prefix} · {name}"
+        try:
+            f = tkfont.Font(font=self.progress_label.cget("font"))
+            avail = self.progress_label.winfo_width() - 20  # padx 两侧各 10
+            if avail <= 0 or f.measure(full) <= avail:
+                return full
+            room = avail - f.measure(prefix) - f.measure(" · ")
+            if room <= f.measure("…"):
+                return prefix
+            n = len(name)
+            while n > 1:
+                head = (n + 1) // 2
+                cand = name[:head] + "…" + (name[len(name) - (n - head):]
+                                            if n > head else "")
+                if f.measure(cand) <= room:
+                    return f"{prefix} · {cand}"
+                n -= 1
+            return prefix
+        except tk.TclError:
+            return full
 
     def _set_search_progress(self, done, total, name):
         """搜索进度（工作线程经 UI 通道投递回主线程执行）。"""
@@ -4534,12 +4579,19 @@ class BatchReplaceApp:
         self.log_text.pack(fill="both", expand=True, padx=8, pady=(4, 6))
 
     def toggle_log(self):
-        """展开 / 收起处理日志"""
-        if self.log_visible:
-            self.log_body.pack_forget()
-        else:
+        """展开 / 收起日志"""
+        self._set_log_visible(not self.log_visible)
+        # 记住用户的收起意图：收起后新日志不再自动顶开面板
+        self.log_user_collapsed = not self.log_visible
+
+    def _set_log_visible(self, visible):
+        if visible == self.log_visible:
+            return
+        if visible:
             self.log_body.pack(fill="x", side="top")
-        self.log_visible = not self.log_visible
+        else:
+            self.log_body.pack_forget()
+        self.log_visible = visible
         self._refresh_log_arrow()
 
     def _status_field(self, parent, text="", fg=None):
@@ -4569,7 +4621,9 @@ class BatchReplaceApp:
         # 当前模式的常驻提示：接在汇总句右边（「备份开启」之后）。参数区第二行
         # 被「区分大小写」等选项占满，模式说明留在那里只会被挤掉。
         mode_box, self.mode_label = self._status_field(inner, fg=self.ACCENT)
+        self.mode_box = mode_box
         mode_box.pack(side="left", padx=(6, 0))
+        self._mode_box_pack = mode_box.pack_info()
         # 进度条先占右侧，再让文本进度标签吃剩余空间——反过来文本标签会把
         # 右侧空间全部吃掉，进度条被挤成 0 宽而看不见。
         self.progress_canvas = tk.Canvas(inner, width=self.BAR_W, height=self.BAR_H,
@@ -4577,10 +4631,12 @@ class BatchReplaceApp:
         self.progress_canvas.pack(side="right", padx=(0, 6))
         self._draw_progress_bar(0.0)
         # 进度标签常驻状态栏，搜索 / 替换期间显示「正在替换 3/10 · 文件名」；
-        # update_status 只改写左侧汇总，不碰它
+        # update_status 只改写左侧汇总，不碰它。左对齐：文字超宽时从右端裁，
+        # 居中会把首尾各切一刀，「正在替换」的动作和文件扩展名一起丢。
+        self._progress_pack = dict(side="left", padx=(10, 10), fill="x", expand=True)
         self.progress_label = tk.Label(inner, text="", bg=self.BG, fg=self.ACCENT,
-                                       anchor="center")
-        self.progress_label.pack(side="left", padx=(10, 10), fill="x", expand=True)
+                                       anchor="w")
+        self.progress_label.pack(**self._progress_pack)
         # 状态栏比参数栏晚建，模式提示的首次文案在这里补上
         self._update_mode_hint()
 
@@ -4694,8 +4750,12 @@ class BatchReplaceApp:
                 self.files_tree.set(iid, "match", "0")
                 self.files_tree.set(iid, "status", self._t("st_no_match"))
 
-    def log(self, message):
-        """添加日志（限制2000行）"""
+    def log(self, message, quiet=False):
+        """添加日志（限制2000行）。
+
+        quiet=True 只记账不展开面板：静默检查失败这类"知道就好"的信息，
+        不该每次启动都把日志顶开。用户手动收起过面板后，本轮也不再自动展开。
+        """
         self.log_text.config(state="normal")
         self.log_text.insert(tk.END, message + "\n")
         lines = int(self.log_text.index("end-1c").split(".")[0])
@@ -4703,6 +4763,8 @@ class BatchReplaceApp:
             self.log_text.delete(1.0, f"{lines - 2000}.0")
         self.log_text.see(tk.END)
         self.log_text.config(state="disabled")
+        if not quiet and not self.log_visible and not self.log_user_collapsed:
+            self._set_log_visible(True)
         self.root.update_idletasks()
 
     def toggle_backup(self):
@@ -7322,8 +7384,9 @@ class BatchReplaceApp:
     def check_for_update(self, parent=None, silent=False):
         """检查更新：手动按钮与启动检查共用。清单校验 → 三选一。
 
-        结果只写日志、不弹说明窗。silent=True（启动检查）只压「没有新版」
-        「检查失败」两种噪音，发现新版照常弹三选一。
+        「没有新版」「检查失败」只写日志、不弹说明窗：这两种弹窗是纯噪音。
+        silent=True（启动检查）不影响发现新版的处理——发现新版照常弹三选一，
+        启动时也得让用户知道有新版并选择怎么处理。
         """
         parent = parent or self.root
         box = queue.Queue()
@@ -7340,21 +7403,11 @@ class BatchReplaceApp:
                 self.root.after(100, poll)
                 return
             if err:
-                self.log(self._t("lg_update_fail", e=err))
-                if silent:
-                    return
-                if messagebox.askyesno(
-                        self._t("t_update_fail"),
-                        self._t("m_update_fail", e=err), parent=parent):
-                    self._open_url(RELEASE_PAGE_URL)
+                self.log(self._t("lg_update_fail", e=err), quiet=silent)
                 return
             latest = manifest["version"]
             if compare_versions(latest, VERSION) <= 0:
-                self.log(self._t("lg_update_none", cur="v" + VERSION))
-                if not silent:
-                    messagebox.showinfo(
-                        self._t("check_update"),
-                        self._t("m_update_latest", cur="v" + VERSION), parent=parent)
+                self.log(self._t("lg_update_none", cur="v" + VERSION), quiet=silent)
                 return
             self.log(self._t("lg_update_found", new=latest, cur="v" + VERSION))
             self._handle_update_found(parent, manifest, latest)

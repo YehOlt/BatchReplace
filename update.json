@@ -1,9 +1,9 @@
 {
-  "version": "v2.0.0",
-  "page": "https://github.com/YehOlt/BatchReplace/releases/tag/v2.0.0",
+  "version": "v2.0.1",
+  "page": "https://github.com/YehOlt/BatchReplace/releases/tag/v2.0.1",
   "pub_date": "2026-11-27T10:40:00Z",
-  "exe": "BatchReplace_v2.0.0.exe",
-  "sha256": "37cfa439a6b5e486d5bda8ecd1790c892c532c970dcafd7dccc446674dd152a1",
-  "size": 16998590,
-  "url": "https://github.com/YehOlt/BatchReplace/releases/download/v2.0.0/BatchReplace_v2.0.0.exe?v=204"
+  "exe": "BatchReplace_v2.0.1.exe",
+  "sha256": "f07c26d77200bd9b45d579d502d3f6ec69771661f7b69e9ba9b42c7b6bad77e3",
+  "size": 17000305,
+  "url": "https://github.com/YehOlt/BatchReplace/releases/download/v2.0.1/BatchReplace_v2.0.1.exe?v=208"
 }

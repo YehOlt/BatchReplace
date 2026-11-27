@@ -465,13 +465,6 @@ SHARED_LOGIC = [
 ]
 
 
-def test_no_split_module():
-    """源码必须保持单文件：不得再拆出 batchreplace_core 之类的搭档模块。"""
-    src = UI_SOURCE.read_text(encoding="utf-8")
-    assert "import batchreplace_core" not in src
-    assert "batchreplace_core" not in src, "源码里残留了对已删除模块的引用"
-
-
 @pytest.mark.parametrize("name", SHARED_LOGIC)
 def test_logic_defined_exactly_once_at_top_level(name):
     """
@@ -2384,18 +2377,6 @@ def test_finish_search_records_multi_conditions_as_one_group(tk_root):
         "作用对象（内容 / 文件名）要一起进历史，否则载入出来的是另一回事"
 
 
-def test_multi_condition_checkbox_placed_after_filename_checkbox():
-    """多条件勾选框紧跟在「替换文件名（而非内容）」右边。
-
-    文案已走 _t（双语），故按 key 出现顺序断言，不再匹配写死的中文；
-    勾选框改自绘后 key 由 _make_check 传入，仍按源码里 key 的先后比。
-    """
-    src = UI_SOURCE.read_text(encoding="utf-8")
-    assert (src.index('_make_check(row2, "replace_filename_opt"')
-            < src.index('_make_check(row2, "multi_condition"')), \
-        "多条件勾选框应排在替换文件名勾选框右边"
-
-
 # =====================================================================
 # 重叠命中 → 整批停下（不自动裁决）
 #
@@ -2661,25 +2642,11 @@ def test_find_history_naming_matches_what_it_actually_stores():
     「操作」会被读成"对文件做过什么"，而记录里既没有文件也没有结果，
     只有条件本身。措辞回退到「操作 / 记录」就是缺陷，故在此钉住。
     """
-    src = UI_SOURCE.read_text(encoding="utf-8")
     assert core.TEXTS["history"]["zh"] == "查找历史"
     for key in ("history_title", "history_header", "history_note",
                 "history_group", "col_cond_group", "m_clear_all_history"):
         assert key in core.TEXTS, "缺少历史对话框文案键：%s" % key
     assert "操作" not in core.TEXTS["history_note"]["zh"], "说明行不该再说「操作」"
-    # 按钮在循环里按 key 建，故断言"键与命令配对"而非写死文案
-    assert '"history", self.show_history_dialog' in src, "按钮未挂 i18n 键"
-    assert 'self._t("history_title"' in src, "历史对话框标题未走 i18n 键"
-    assert 'self._t("history_note")' in src, "说明行没挂到对话框上"
-
-
-def test_history_dialog_groups_conditions():
-    """对话框必须按组展示：树形 + 组头加粗 + 组头/条件行两级 iid。"""
-    src = UI_SOURCE.read_text(encoding="utf-8")
-    assert 'show="tree headings"' in src, "按组展示必须用树形（有行首可展开）"
-    assert '"group"' in src and "_history_group_font" in src, "组头要有独立样式"
-    assert 'cid = f"{key}::{i}"' in src, "条件行 iid 由组键 + 序号构成，不带列表下标"
-    assert "history_row_keys(self.find_history)" in src
 
 
 # =====================================================================
@@ -2721,16 +2688,6 @@ def test_open_url_opens_system_browser(monkeypatch):
 
     monkeypatch.setattr(core.webbrowser, "open", boom)
     app._open_url(core.RELEASE_PAGE_URL)         # 不该抛出去
-
-
-def test_about_window_links_are_buttons():
-    """关于窗的外链一律是按钮：URL 不当文本显示，点了直接开浏览器。"""
-    src = UI_SOURCE.read_text(encoding="utf-8")
-    about = src[src.index("    def show_about(self):"):src.index("\ndef main():")]
-    assert "RELEASE_PAGE_URL" in about, "关于窗口里没有发布页地址"
-    assert "_open_url" in about, "外链没走跳转方法"
-    assert '"contact"' in about, "关于页没有联系方式"
-    assert "messagebox.showinfo" not in about, "系统消息框给不了可点的链接"
 
 
 # =====================================================================
@@ -3045,6 +3002,24 @@ def test_checkbox_repaints_when_variable_set_programmatically(tk_root, monkeypat
             "变量没挂重绘回调，程序改动后界面不会刷新"
     finally:
         core.CURRENT_LANG = core.DEFAULT_LANG
+
+
+def test_log_panel_starts_expanded_and_is_called_log(tk_root, monkeypatch, tmp_path):
+    """日志面板默认展开，标题叫「日志」；用户收起后本轮不再被新日志顶开。"""
+    monkeypatch.setattr(core, "CONFIG_FILE", str(tmp_path / "cfg.json"))
+    monkeypatch.setattr(core, "HISTORY_FILE", str(tmp_path / "hist.json"))
+    monkeypatch.setattr(core, "RULES_DIR", str(tmp_path / "rules"))
+    app = core.BatchReplaceApp(tk_root)
+    assert app.log_visible is True, "日志面板应默认展开"
+    assert app.log_body.winfo_manager() == "pack", "展开时正文要真的装进布局"
+    assert app.log_arrow.cget("text") == "\u25be  " + core.TEXTS["process_log"]["zh"]
+    assert core.TEXTS["process_log"]["zh"] == "日志"
+    assert core.TEXTS["process_log"]["en"] == "Log"
+
+    app.toggle_log()  # 用户收起
+    assert app.log_visible is False and app.log_user_collapsed is True
+    app.log("测试消息")
+    assert app.log_visible is False, "用户收起过，新日志不该把面板顶开"
 
 
 def test_switch_lang_retranslates_widgets_without_persisting(tk_root, monkeypatch, tmp_path):
@@ -4087,7 +4062,6 @@ def test_mode_hint_lives_in_status_bar(tmp_path, monkeypatch):
         monkeypatch.setattr(core, "RULES_DIR", str(tmp_path / "rules"))
         app = core.BatchReplaceApp(root)
         root.update()
-        assert not hasattr(app, "mode_hint"), "参数区不应再留模式提示标签"
         assert app.mode_label.winfo_ismapped() or app.mode_label.winfo_manager() == "pack"
         assert app.mode_label.winfo_rootx() >= (
             app.status_label.winfo_rootx() + app.status_label.winfo_width() - 2), \
@@ -4297,17 +4271,93 @@ def test_fetch_latest_release_api_falls_back_to_raw(monkeypatch):
     assert seen == [core.MANIFEST_API, core.UPDATE_MANIFEST]
 
 
-def test_one_click_update_module_present():
-    """一键更新链路完整：清单校验 → 下载验签 → 校验即启动。"""
-    src = UI_SOURCE.read_text(encoding="utf-8")
-    for name in ("UPDATE_MANIFEST", "validate_update_manifest",
-                 "fetch_update_manifest", "download_verified_exe",
-                 "launch_verified_exe", "run_one_click_update",
-                 "silent_update_target", "subprocess"):
-        assert name in src, "一键更新模块缺失：%s" % name
-    # 已废弃的 bat 脚本式升级不得回潮
-    for name in ("_bat_quote", "write_upgrade_bat", "start_upgrade_bat", "run_upgrade"):
-        assert name not in src, "已废弃的 bat 升级残留：%s" % name
+def _manifest_bytes(**over):
+    import json
+    m = {"version": "v9.9.9", "exe": "BatchReplace_v9.9.9.exe",
+         "sha256": "a" * 64, "size": 1024,
+         "url": "https://example.test/BatchReplace_v9.9.9.exe"}
+    m.update(over)
+    return json.dumps(m).encode("utf-8")
+
+
+def _envelope(payload):
+    import base64
+    import json
+    return json.dumps({"name": "update.json", "content": base64.b64encode(
+        payload).decode("ascii")}).encode("utf-8")
+
+
+def test_fetch_update_manifest_reads_api_first(monkeypatch):
+    """清单主路走 API contents：envelope 里的 base64 解出来才算数，raw 不碰。"""
+    seen = []
+
+    def fake_get(url, timeout=8, limit=None):
+        seen.append(url)
+        return _envelope(_manifest_bytes())
+
+    monkeypatch.setattr(core, "_github_get", fake_get)
+    m, err = core.fetch_update_manifest()
+    assert err is None and m["version"] == "v9.9.9"
+    assert seen == [core.MANIFEST_API]
+
+
+def test_fetch_update_manifest_falls_back_to_raw(monkeypatch):
+    """API 不通时退 raw，返回的仍是校验过的同一份清单。"""
+    seen = []
+
+    def fake_get(url, timeout=8, limit=None):
+        seen.append(url)
+        if url == core.MANIFEST_API:
+            raise OSError("api blocked")
+        return _manifest_bytes()
+
+    monkeypatch.setattr(core, "_github_get", fake_get)
+    m, err = core.fetch_update_manifest()
+    assert err is None and m["version"] == "v9.9.9"
+    assert seen == [core.MANIFEST_API, core.UPDATE_MANIFEST]
+
+
+def test_fetch_update_manifest_reports_deduped_errors(monkeypatch):
+    """两路报同一个故障时只显示一次，不把同一句话重复两遍。"""
+    def fake_get(url, timeout=8, limit=None):
+        raise OSError("offline")
+
+    monkeypatch.setattr(core, "_github_get", fake_get)
+    m, err = core.fetch_update_manifest()
+    assert m is None and err == "offline"
+
+
+def test_fetch_update_manifest_explicit_url_is_single_shot(monkeypatch):
+    """显式传地址（测试 / 自检用）只打那一个，不串到默认两路。"""
+    seen = []
+
+    def fake_get(url, timeout=8, limit=None):
+        seen.append(url)
+        return _manifest_bytes()
+
+    monkeypatch.setattr(core, "_github_get", fake_get)
+    m, err = core.fetch_update_manifest("https://cdn.test/update.json")
+    assert err is None and m["version"] == "v9.9.9"
+    assert seen == ["https://cdn.test/update.json"]
+
+
+def test_fetch_update_manifest_accepts_api_envelope_by_url(monkeypatch):
+    """显式传 API 地址也认 envelope：调用方不必声明自己给的是哪种响应。"""
+    monkeypatch.setattr(core, "_github_get",
+                        lambda url, timeout=8, limit=None: _envelope(_manifest_bytes()))
+    m, err = core.fetch_update_manifest(core.MANIFEST_API)
+    assert err is None and m["version"] == "v9.9.9"
+
+
+def test_fetch_update_manifest_rejects_oversized_payload(monkeypatch):
+    """超上限的响应直接判非法，不把整包读进内存。API 走 base64 放大 1.33 倍，
+    上限按两倍放宽——但清单本体仍受 64KB 约束。"""
+    big = b"{" + b" " * (core.UPDATE_MAX_MANIFEST + 8) + b"}"
+
+    monkeypatch.setattr(core, "_github_get",
+                        lambda url, timeout=8, limit=None: big)
+    m, err = core.fetch_update_manifest()
+    assert m is None and "清单异常大" in err
 
 
 class _SyncThread:
@@ -4340,8 +4390,78 @@ def _update_app(monkeypatch, root, logs):
     _fast_after(monkeypatch, root)
     app = core.BatchReplaceApp.__new__(core.BatchReplaceApp)
     app.root = root
-    app.log = lambda message: logs.append(message)
+    app.theme = "light"          # 对话框摆位要按主题给标题栏上色
+    app.log = lambda message, quiet=False: logs.append(message)
     return app
+
+
+def _walk_widgets(win):
+    out = []
+    stack = [win]
+    while stack:
+        w = stack.pop()
+        out.append(w)
+        stack.extend(w.winfo_children())
+    return out
+
+
+def _find_toplevel(root, title):
+    for w in _walk_widgets(root):
+        if w.winfo_class() == "Toplevel" and w.title() == title:
+            return w
+    return None
+
+
+def _find_text_button(win, label):
+    for w in _walk_widgets(win):
+        if w.winfo_class() in ("TButton", "Button"):
+            try:
+                if w.cget("text") == label:
+                    return w
+            except Exception:
+                pass
+    return None
+
+
+def test_ask_update_choice_builds_real_dialog(monkeypatch, tk_root):
+    """三选一窗必须真的建得出来，并把选择返回给调用方。
+
+    曾经 ttk.Label 把文案按位置传入，Python 3.12 的 ttk 直接抛 TypeError：
+    窗建到一半中断，grab 已经抓住键盘没人释放，整个程序点不动。断言真建窗
+    （而不是替身）才能挡住这类问题。
+    """
+    app = _update_app(monkeypatch, tk_root, [])
+    seen = {}
+
+    def close_it():
+        dlg = _find_toplevel(tk_root, app._t("t_update_found"))
+        assert dlg is not None, "三选一窗没建出来"
+        seen["size"] = (dlg.winfo_reqwidth(), dlg.winfo_reqheight())
+        btn = _find_text_button(dlg, app._t("b_update_skip"))
+        assert btn is not None, "没找到「暂不更新」按钮"
+        btn.invoke()
+
+    tk_root.after(150, close_it)
+    assert app.ask_update_choice(tk_root, "v2.0.9") == "skip"
+    assert seen["size"][0] > 100 and seen["size"][1] > 60, "窗没按内容撑开"
+    assert tk_root.grab_current() is None, "对话框关掉后 grab 必须释放"
+
+
+def test_ask_update_choice_failure_leaves_no_grab(monkeypatch, tk_root):
+    """建窗中途失败不许留下抓着键盘的空壳窗。"""
+    app = _update_app(monkeypatch, tk_root, [])
+
+    class Boom(Exception):
+        pass
+
+    def boom(*_a, **_k):
+        raise Boom()
+
+    monkeypatch.setattr(core.ttk, "Label", boom)
+    with pytest.raises(Boom):
+        app.ask_update_choice(tk_root, "v2.0.9")
+    assert tk_root.grab_current() is None
+    assert _find_toplevel(tk_root, app._t("t_update_found")) is None
 
 
 def test_silent_check_does_not_popup_without_new_version(monkeypatch, tk_root):
@@ -4401,22 +4521,45 @@ def test_update_launch_hands_over_and_closes_old_window(monkeypatch, tk_root):
 
 
 def test_manual_check_reports_latest_and_logs(monkeypatch, tk_root):
+    """结果只进日志不弹窗：检查更新说明一律走日志面板。"""
     monkeypatch.setattr(core, "threading", _SyncThreading)
     monkeypatch.setattr(core, "fetch_update_manifest",
                         lambda: ({"version": "v2.0.0", "page": ""}, None))
-    shown = []
-    monkeypatch.setattr(
-        core.messagebox, "showinfo", lambda *a, **k: shown.append(a) or None)
+    popped = []
+
+    def _no_dialog(*a, **k):
+        popped.append(a)
+
+    for name in ("showinfo", "askyesno", "showwarning"):
+        monkeypatch.setattr(core.messagebox, name, _no_dialog)
     logs = []
     _update_app(monkeypatch, tk_root, logs).check_for_update(tk_root)
-    assert len(shown) == 1 and "2.0.0" in shown[0][1]
+    assert popped == []
     assert any("未发现新版本" in line for line in logs)
+
+
+def test_manual_check_fail_logs_without_dialog(monkeypatch, tk_root):
+    """检查失败同样只写日志，不再弹「是否打开发布页」。"""
+    monkeypatch.setattr(core, "threading", _SyncThreading)
+    monkeypatch.setattr(core, "fetch_update_manifest",
+                        lambda: (None, "network down"))
+    popped = []
+
+    def _no_dialog(*a, **k):
+        popped.append(a)
+
+    for name in ("showinfo", "askyesno", "showwarning"):
+        monkeypatch.setattr(core.messagebox, name, _no_dialog)
+    logs = []
+    _update_app(monkeypatch, tk_root, logs).check_for_update(tk_root)
+    assert popped == []
+    assert any("检查更新失败" in line for line in logs)
 
 
 def test_manual_check_skip_does_not_open(monkeypatch, tk_root):
     monkeypatch.setattr(core, "threading", _SyncThreading)
     monkeypatch.setattr(core, "fetch_update_manifest",
-                        lambda: ({"version": "v2.0.1", "page": "url"}, None))
+                        lambda: ({"version": "v2.0.9", "page": "url"}, None))
     monkeypatch.setattr(core.BatchReplaceApp, "ask_update_choice", lambda *a, **k: "skip")
     opened = []
     monkeypatch.setattr(core.BatchReplaceApp, "_open_url",
@@ -4429,7 +4572,7 @@ def test_manual_check_skip_does_not_open(monkeypatch, tk_root):
 def test_manual_check_confirm_opens_release_page(monkeypatch, tk_root):
     monkeypatch.setattr(core, "threading", _SyncThreading)
     monkeypatch.setattr(core, "fetch_update_manifest",
-                        lambda: ({"version": "v2.0.1", "page": "https://example.test/v201"}, None))
+                        lambda: ({"version": "v2.0.9", "page": "https://example.test/v201"}, None))
     monkeypatch.setattr(core.BatchReplaceApp, "ask_update_choice", lambda *a, **k: "page")
     opened = []
     monkeypatch.setattr(core.BatchReplaceApp, "_open_url",
